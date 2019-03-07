@@ -6,21 +6,44 @@ var mongodb = require('mongodb');
 
 var App = function(){
 
+  var port = process.env.PORT || process.env.OPENSHIFT_NODEJS_PORT || 8080,
+      ip   = process.env.IP   || process.env.OPENSHIFT_NODEJS_IP || '0.0.0.0',
+      mongoURL = process.env.OPENSHIFT_MONGODB_DB_URL || process.env.MONGO_URL,
+      mongoURLLabel = "";
+
+  if (mongoURL == null && process.env.DATABASE_SERVICE_NAME) {
+    var mongoServiceName = process.env.DATABASE_SERVICE_NAME.toUpperCase(),
+        mongoHost = process.env[mongoServiceName + '_SERVICE_HOST'],
+        mongoPort = process.env[mongoServiceName + '_SERVICE_PORT'],
+        mongoDatabase = process.env[mongoServiceName + '_DATABASE'],
+        mongoPassword = process.env[mongoServiceName + '_PASSWORD']
+        mongoUser = process.env[mongoServiceName + '_USER'];
+
+    if (mongoHost && mongoPort && mongoDatabase) {
+      mongoURLLabel = mongoURL = 'mongodb://';
+      if (mongoUser && mongoPassword) {
+        mongoURL += mongoUser + ':' + mongoPassword + '@';
+      }
+
+      mongoURLLabel += mongoHost + ':' + mongoPort + '/' + mongoDatabase;
+      mongoURL += mongoHost + ':' +  mongoPort + '/' + mongoDatabase;
+    }
+  }
+
   // Scope
   var self = this;
 
   // Setup
-  self.dbServer = new mongodb.Server(process.env.OPENSHIFT_MONGODB_DB_HOST,parseInt(process.env.OPENSHIFT_MONGODB_DB_PORT));
-  self.db = new mongodb.Db(process.env.OPENSHIFT_APP_NAME, self.dbServer, {auto_reconnect: true});
-  self.dbUser = process.env.OPENSHIFT_MONGODB_DB_USERNAME;
-  self.dbPass = process.env.OPENSHIFT_MONGODB_DB_PASSWORD;
+  self.dbServer = new mongodb.Server(mongoHost, mongoPort);
+  self.db = new mongodb.Db(mongoServiceName, self.dbServer, {auto_reconnect: true});
+  self.dbUser = mongoUser;
+  self.dbPass = mongoPassword;
 
-  self.ipaddr  = process.env.OPENSHIFT_NODEJS_IP;
-  self.port    = parseInt(process.env.OPENSHIFT_NODEJS_PORT) || 8080;
+  self.ipaddr  = ip;
+  self.port    = port;
   if (typeof self.ipaddr === "undefined") {
     console.warn('No OPENSHIFT_NODEJS_IP environment variable');
   };
-
 
   // Web app logic
   self.routes = {};
@@ -95,18 +118,12 @@ var App = function(){
       });
   };
 
-
-
-
   // Web app urls
-  
   self.app  = express();
   self.app.use(express.compress());
   
   // Serve up content from public directory
   self.app.use(express.static(__dirname + '/public'));
-
-
 
   //This uses the Connect frameworks body parser to parse the body of the post request
   self.app.configure(function () {
@@ -125,9 +142,7 @@ var App = function(){
   self.app.get('/ws/parks/within', self.routes['within']);
   self.app.post('/ws/parks/park', self.routes['postAPark']);
 
-
   // Logic to open a database connection. We are going to call this outside of app so it is available to all our functions inside.
-
   self.connectDb = function(callback){
     self.db.open(function(err, db){
       if(err){ throw err };
@@ -137,7 +152,6 @@ var App = function(){
       });
     });
   };
-  
   
   //starting the nodejs server with express
   self.startServer = function(){
