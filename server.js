@@ -45,6 +45,9 @@ var App = function(){
     console.warn('No OPENSHIFT_NODEJS_IP environment variable');
   };
 
+  console.log('mongoHost: ', mongoHost);
+  console.log('mongoPort: ', mongoPort);
+
   // Web app logic
   self.routes = {};
   self.routes['health'] = function(req, res){ res.send('1'); };
